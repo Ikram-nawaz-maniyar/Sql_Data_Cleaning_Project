@@ -1,142 +1,228 @@
 📊 SQL Data Cleaning Project – Layoffs Dataset
-📌 Project Overview
+📌 Project Objective
 
-This project focuses on cleaning and preparing a real-world layoffs dataset using MySQL.
-The raw data contained duplicates, inconsistent formatting, incorrect data types, and missing values.
-The goal was to transform the dataset into a clean, analysis-ready table.
+The goal of this project was to clean and transform a raw layoffs dataset using MySQL.
+The dataset contained duplicates, inconsistent formatting, missing values, and incorrect data types.
 
-🛠 Tools & Technologies
+The cleaning process was divided into 4 major stages:
 
-MySQL
+Finding and Removing Duplicates
 
-SQL Window Functions
+Standardizing Data
 
-Common Table Expressions (CTEs)
+Handling NULL / Blank Values
 
-Joins & Self-Joins
+Removing Unnecessary Columns
 
-Data Type Conversion
+🗂 Initial Dataset
+SELECT * 
+FROM layoffs_staging;
 
-📂 Dataset Information
 
-Original Table: layoffs_staging
+This table contains the raw uncleaned data.
 
-Cleaned Table: layoffs_staging2
-
-Data Includes:
-
-Company
-
-Location
-
-Industry
-
-Total Layoffs
-
-Percentage Laid Off
-
-Date
-
-Company Stage
-
-Country
-
-Funds Raised
-
-🔄 Data Cleaning Process
 🔹 Stage 1: Finding and Removing Duplicates
+Step 1: Identify Duplicate Rows
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company,
+location,
+industry,
+total_laid_off,
+percentage_laid_off,
+date,
+stage,
+country,
+funds_raised_millions
+) AS row_num
+FROM layoffs_staging;
 
-Used ROW_NUMBER() window function to identify duplicate rows.
+🔎 Explanation:
 
-Partitioned data based on all major columns.
+ROW_NUMBER() assigns a number to rows within identical groups.
 
-Created a new staging table to safely remove duplicates.
+If row_num > 1, the row is a duplicate.
 
-Deleted records where row_num > 1.
+Step 2: Use CTE to View Duplicates
+WITH duplicate_cte AS
+(
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company,
+location,
+industry,
+total_laid_off,
+percentage_laid_off,
+date,
+stage,
+country,
+funds_raised_millions
+) AS row_num
+FROM layoffs_staging
+)
+SELECT *
+FROM duplicate_cte
+WHERE row_num > 1;
 
-Result: Only unique records retained.
+
+This displays only duplicate rows.
+
+Step 3: Create New Staging Table
+CREATE TABLE layoffs_staging2 (
+  company TEXT,
+  location TEXT,
+  industry TEXT,
+  total_laid_off INT DEFAULT NULL,
+  percentage_laid_off TEXT,
+  date TEXT,
+  stage TEXT,
+  country TEXT,
+  funds_raised_millions INT DEFAULT NULL,
+  row_num INT
+);
+
+
+We create a new table to safely remove duplicates.
+
+Step 4: Insert Data with Row Numbers
+INSERT INTO layoffs_staging2
+SELECT *,
+ROW_NUMBER() OVER(
+PARTITION BY company,
+location,
+industry,
+total_laid_off,
+percentage_laid_off,
+date,
+stage,
+country,
+funds_raised_millions
+) AS row_num
+FROM layoffs_staging;
+
+Step 5: Delete Duplicate Records
+DELETE
+FROM layoffs_staging2
+WHERE row_num > 1;
+
+
+Now the dataset is duplicate-free.
 
 🔹 Stage 2: Standardizing Data
+Step 1: Trim Extra Spaces
+UPDATE layoffs_staging2
+SET company = TRIM(company);
 
-Removed leading and trailing spaces from company names.
 
-Standardized industry values (e.g., Crypto-related values).
+Removes leading and trailing spaces.
 
-Cleaned country names by removing trailing punctuation.
+Step 2: Standardize Industry Values
+UPDATE layoffs_staging2
+SET industry = 'Crypto'
+WHERE industry LIKE 'Crypto%';
 
-Ensured consistent text formatting across columns.
 
-Result: Clean and consistent categorical data.
+Ensures consistent industry naming.
+
+Step 3: Clean Country Names
+UPDATE layoffs_staging2
+SET country = TRIM(TRAILING '.' FROM country)
+WHERE country LIKE 'United States%';
+
+
+Removes trailing punctuation from country names.
 
 🔹 Stage 3: Handling NULL and Blank Values
+Step 1: Convert Blank Industry to NULL
+UPDATE layoffs_staging2
+SET industry = NULL
+WHERE industry = '';
 
-Converted blank values into proper NULLs.
 
-Filled missing industry values using self-join logic based on company name.
+Ensures proper NULL handling.
 
-Converted date column from text format to DATE datatype.
+Step 2: Fill Missing Industry Using Self Join
+UPDATE layoffs_staging2 t1
+JOIN layoffs_staging2 t2
+  ON t1.company = t2.company
+SET t1.industry = t2.industry
+WHERE t1.industry IS NULL
+AND t2.industry IS NOT NULL;
 
-Removed rows where both layoff metrics were missing.
 
-Result: Improved data completeness and reliability.
+This fills missing industry values using existing company data.
 
-🔹 Stage 4: Removing Unnecessary Columns
+Step 3: Convert Date from Text to Proper Date Format
+UPDATE layoffs_staging2
+SET date = STR_TO_DATE(date,'%m/%d/%Y');
 
-Dropped the temporary row_num column after deduplication.
 
-Result: Optimized final table structure.
+Converts text date to MySQL date format.
 
-✅ Final Outcome
+Step 4: Modify Column Data Type to DATE
+ALTER TABLE layoffs_staging2
+MODIFY COLUMN date DATE;
 
-Duplicates removed
 
-Text fields standardized
+Ensures correct datatype for analysis.
 
-Date column converted to proper DATE datatype
+Step 5: Remove Rows with No Layoff Data
+DELETE
+FROM layoffs_staging2
+WHERE total_laid_off IS NULL
+AND percentage_laid_off IS NULL;
 
-Missing values handled logically
 
-Dataset ready for analysis and visualization
+Removes irrelevant records.
 
-📈 Skills Demonstrated
+🔹 Stage 4: Remove Unnecessary Columns
 
-Data Cleaning & Preparation
+After cleaning, row_num is no longer needed.
 
-SQL Window Functions
+ALTER TABLE layoffs_staging2
+DROP COLUMN row_num;
 
-CTEs
 
-Self-Joins
+Final cleaned dataset is ready.
 
-Data Standardization
+✅ Final Output
 
-NULL Handling
+The dataset now:
 
-Table Optimization
+✔ Contains no duplicates
+✔ Has standardized text fields
+✔ Uses proper DATE datatype
+✔ Handles NULL values properly
+✔ Removes unnecessary helper columns
 
-🚀 Next Steps
+📈 Future Enhancements
 
 Perform Exploratory Data Analysis (EDA)
 
-Create dashboards using Power BI or Tableau
+Create dashboards in Power BI
 
-Identify layoff trends by year, industry, and country
+Analyze layoff trends by year and country
 
-📌 Author
+Identify top affected industries
 
-Maniyar Ikram
-Aspiring Data Analyst
+🎯 Skills Demonstrated
 
-If you want, I can also:
+Window Functions
 
-Add EDA queries section
+CTEs
 
-Make it ATS-optimized for recruiters
+Self Joins
 
-Create a Power BI dashboard outline
+Data Cleaning Techniques
 
-Shorten this for GitHub portfolio landing page
+Data Type Conversion
 
-Just tell me 👍
+SQL Data Transformation
 
-I prefer this response
+If you want, I can now:
+
+Add an EDA section to make this project stronger
+
+Make it more advanced-level impressive
+
+Or tailor it specifically for data analyst job applications 🚀
